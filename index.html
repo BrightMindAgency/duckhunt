@@ -365,6 +365,7 @@ const DUCK_ESCAPE_THRESHOLD = -100; // Y position at which duck is considered es
 const COMMUNITY_URL = 'https://www.skool.com/ai-sverige'; // Lead gen community URL
 const DOG_ANIMATION_DURATION = 2000; // Dog display duration in ms
 const HUD_HEIGHT = 80; // Height of bottom HUD bar
+const GAME_FPS = 60; // Assumed frame rate for calculations
 
 // --- STATE ---
 const state = {
@@ -605,7 +606,7 @@ class Dog {
                 this.animFrame = (this.animFrame + 1) % 2;
             }
             // After duration, start lowering
-            if (this.timer > DOG_ANIMATION_DURATION / 16) { // ~60fps assumption
+            if (this.timer > (DOG_ANIMATION_DURATION / 1000) * GAME_FPS) {
                 this.state = 'LOWERING';
                 this.targetY = 0;
             }
@@ -745,10 +746,8 @@ class Duck {
             if (this.y < DUCK_ESCAPE_THRESHOLD) {
                 this.state = 'ESCAPED';
                 // Duck escaped - trigger dog laughing
-                if (state.isActive && !state.dogAnimating) {
-                    state.dogAnimating = true;
-                    if (!state.dog) state.dog = new Dog();
-                    state.dog.show('LAUGHING');
+                if (state.isActive) {
+                    triggerDogAnimation('LAUGHING');
                     // Mark as miss in hit meter
                     if (state.hitMeter.length < DUCKS_PER_ROUND) {
                         state.hitMeter.push(false);
@@ -768,10 +767,8 @@ class Duck {
             if (this.y > canvas.height - HUD_HEIGHT - 20) {
                 this.state = 'DEAD';
                 // Trigger dog catching animation
-                if (state.isActive && !state.dogAnimating) {
-                    state.dogAnimating = true;
-                    if (!state.dog) state.dog = new Dog();
-                    state.dog.show('CATCHING');
+                if (state.isActive) {
+                    triggerDogAnimation('CATCHING');
                 }
             }
         } else if (this.state === 'ESCAPED') {
@@ -827,6 +824,14 @@ class Duck {
 }
 
 // --- GAME LOGIC ---
+
+function triggerDogAnimation(mode) {
+    if (!state.dogAnimating) {
+        state.dogAnimating = true;
+        if (!state.dog) state.dog = new Dog();
+        state.dog.show(mode);
+    }
+}
 
 function loseLife() {
     state.lives--;
