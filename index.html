@@ -380,7 +380,8 @@ const state = {
     ducksHitRound: 0,
     ducksSpawnedRound: 0,
     maxDucksRound: DUCKS_PER_ROUND,
-    cameraActive: false
+    cameraActive: false,
+    announcementTimeout: null // Track announcement timeout to prevent overlaps
 };
 
 // --- DOM ELEMENTS ---
@@ -665,11 +666,18 @@ function loseLife() {
 }
 
 function showRoundAnnouncement(roundNumber) {
+    // Clear any existing announcement timeout to prevent overlaps
+    if (state.announcementTimeout) {
+        clearTimeout(state.announcementTimeout);
+    }
+    
     const announcement = document.getElementById('round-announcement');
     announcement.innerText = `ROUND ${roundNumber} STARTS NOW`;
     announcement.style.display = 'block';
-    setTimeout(() => {
+    
+    state.announcementTimeout = setTimeout(() => {
         announcement.style.display = 'none';
+        state.announcementTimeout = null;
     }, ROUND_ANNOUNCEMENT_DURATION);
 }
 
