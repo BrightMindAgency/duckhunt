@@ -79,6 +79,26 @@
             font-size: 16px;
         }
 
+        /* Round Announcement Overlay */
+        #round-announcement {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 32px;
+            color: #ffcc00;
+            text-shadow: 4px 4px #000;
+            z-index: 30;
+            display: none;
+            animation: fadeInOut 2s ease-in-out;
+        }
+
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+            50% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+        }
+
         .hud-bottom {
             display: flex;
             gap: 20px;
@@ -256,13 +276,15 @@
     <div class="ui-layer">
         <div class="hud-top">
             <div id="score-display">SCORE: 0</div>
-            <div id="highscore-display">HI-SCORE: 0</div>
+            <div id="lives-display">LIVES: 5</div>
         </div>
         <div class="hud-bottom">
             <div class="ammo-box" id="ammo-display"></div>
             <div id="level-display">ROUND 1</div>
         </div>
     </div>
+
+    <div id="round-announcement"></div>
 
     <!-- Hidden video element for MediaPipe input -->
     <video id="webcam" autoplay playsinline style="display:none;"></video>
@@ -299,6 +321,8 @@
     <div id="game-over-screen" style="display: none;">
         <h1 class="text-red-500 text-4xl mb-4">GAME OVER</h1>
         <p id="final-score" class="mb-4">SCORE: 0</p>
+        <p class="mb-4 text-sm" style="color: #3fbfff;">Want to learn more about AI?</p>
+        <a href="https://www.skool.com/ai-sverige" target="_blank" rel="noopener noreferrer" style="color: #ffcc00; text-decoration: underline; margin-bottom: 20px; display: block; pointer-events: auto;">Join my Free Community on Skool</a>
         <button id="restart-btn">TRY AGAIN</button>
     </div>
     
@@ -327,7 +351,7 @@ const state = {
     isActive: false,
     aiLoaded: false,
     score: 0,
-    highScore: localStorage.getItem('duckhunt_hiscore') || 0,
+    lives: 5,
     round: 1,
     ammo: MAX_AMMO,
     ducks: [],
@@ -550,7 +574,17 @@ class Duck {
             this.x += this.vx;
             this.y += this.vy;
             if (this.x < 0 || this.x > canvas.width - this.width) this.vx *= -1;
-            if (this.y < -100) this.state = 'DEAD'; 
+            if (this.y < -100) {
+                this.state = 'DEAD';
+                // Duck escaped - deduct a life
+                if (window.state && window.state.isActive) {
+                    window.state.lives--;
+                    updateHUD();
+                    if (window.state.lives <= 0) {
+                        gameOver();
+                    }
+                }
+            }
             if (this.timer % 10 === 0) this.animFrame = (this.animFrame + 1) % 2;
         } else if (this.state === 'SHOT') {
             this.timer++;
@@ -637,7 +671,7 @@ function spawnDuck() {
 
 function updateHUD() {
     document.getElementById('score-display').innerText = `SCORE: ${state.score}`;
-    document.getElementById('highscore-display').innerText = `HI-SCORE: ${state.highScore}`;
+    document.getElementById('lives-display').innerText = `LIVES: ${state.lives}`;
     document.getElementById('level-display').innerText = `ROUND ${state.round}`;
     const ammoBox = document.getElementById('ammo-display');
     ammoBox.innerHTML = '';
@@ -650,10 +684,6 @@ function updateHUD() {
 
 function gameOver() {
     state.isActive = false;
-    if (state.score > state.highScore) {
-        state.highScore = state.score;
-        localStorage.setItem('duckhunt_hiscore', state.highScore);
-    }
     document.getElementById('final-score').innerText = `FINAL SCORE: ${state.score}`;
     document.getElementById('game-over-screen').style.display = 'flex';
     document.getElementById('start-screen').style.display = 'none';
@@ -666,9 +696,18 @@ function nextRound() {
     state.ducksHitRound = 0;
     state.ducksSpawnedRound = 0;
     state.ducks = [];
-    state.maxDucksRound += 2;
+    // Keep maxDucksRound fixed at 10
+    state.maxDucksRound = 10;
     updateHUD();
     playSound('round_start');
+    
+    // Show round announcement
+    const announcement = document.getElementById('round-announcement');
+    announcement.innerText = `ROUND ${state.round} STARTS NOW`;
+    announcement.style.display = 'block';
+    setTimeout(() => {
+        announcement.style.display = 'none';
+    }, 2000);
 }
 
 function gameLoop() {
@@ -729,16 +768,26 @@ window.addEventListener('resize', resize);
 
 function startGame() {
     state.score = 0;
+    state.lives = 5;
     state.round = 1;
     state.ammo = MAX_AMMO;
     state.ducks = [];
     state.ducksSpawnedRound = 0;
+    state.maxDucksRound = 10;
     state.isActive = true;
     updateHUD();
     playSound('round_start');
     
     document.getElementById('start-screen').style.display = 'none';
     document.getElementById('game-over-screen').style.display = 'none';
+    
+    // Show round 1 announcement
+    const announcement = document.getElementById('round-announcement');
+    announcement.innerText = 'ROUND 1 STARTS NOW';
+    announcement.style.display = 'block';
+    setTimeout(() => {
+        announcement.style.display = 'none';
+    }, 2000);
     
     resize();
     gameLoop();
