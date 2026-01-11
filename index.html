@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Webcam Duck Hunt 8-Bit</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- AI Hand Tracking Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        body {
+            background-color: #222;
+            color: white;
+            font-family: 'Press Start 2P', cursive;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background-color: #3fbfff;
+            background-size: cover;
+            background-position: center;
+            image-rendering: pixelated;
+        }
+
+        #game-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* UI Overlays */
+        .ui-layer {
+            position: absolute;
+            pointer-events: none;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+            box-sizing: border-box;
+            text-shadow: 2px 2px #000;
+        }
+
+        .hud-top {
+            display: flex;
+            justify-content: space-between;
+            font-size: 16px;
+        }
+
+        .hud-bottom {
+            display: flex;
+            gap: 20px;
+            align-items: flex-end;
+        }
+
+        .ammo-box {
+            display: flex;
+            gap: 5px;
+        }
+
+        .bullet {
+            width: 12px;
+            height: 20px;
+            background: #ffcc00;
+            border: 2px solid #fff;
+            display: inline-block;
+        }
+
+        /* Screens */
+        #start-screen, #game-over-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+            pointer-events: auto;
+            text-align: center;
+        }
+
+        button {
+            background: #ff7700;
+            border: 4px solid #fff;
+            color: white;
+            font-family: 'Press Start 2P', cursive;
+            padding: 15px 30px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 20px;
+            text-transform: uppercase;
+        }
+
+        button:hover {
+            background: #ffcc00;
+            color: #000;
+        }
+
+        /* Webcam Preview - Small */
+        #webcam-container {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 160px;
+            z-index: 10;
+        }
+
+        #webcam-preview {
+            width: 100%;
+            height: 120px;
+            border: 4px solid #fff;
+            background: #000;
+            transform: scaleX(-1); /* Mirror */
+            opacity: 0.8;
+            display: none; 
+        }
+
+        /* Trigger Meter */
+        #trigger-meter-container {
+            width: 100%;
+            height: 15px;
+            background: #333;
+            border: 2px solid white;
+            margin-top: 5px;
+            position: relative;
+            display: none;
+        }
+
+        #trigger-fill {
+            height: 100%;
+            width: 0%;
+            background: #fbbf24;
+            transition: width 0.1s, background-color 0.1s;
+        }
+
+        #trigger-threshold-line {
+            position: absolute;
+            left: 50%; /* Adjusted to match new 0.10 threshold */
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: red;
+            z-index: 2;
+        }
+        
+        .trigger-label {
+            font-size: 8px;
+            color: #fff;
+            text-align: center;
+            margin-top: 2px;
+        }
+
+        .shot-flash {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: white;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.1s;
+            z-index: 40;
+        }
+
+        .instructions {
+            font-size: 10px;
+            color: #aaa;
+            margin-top: 10px;
+            line-height: 1.6;
+            max-width: 600px;
+        }
+        
+        .loading-spinner {
+            border: 4px solid #333;
+            border-top: 4px solid #3fbfff;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 10px auto;
+        }
+        
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="game-canvas"></canvas>
+    <div class="shot-flash" id="flash-overlay"></div>
+
+    <div class="ui-layer">
+        <div class="hud-top">
+            <div id="score-display">SCORE: 0</div>
+            <div id="highscore-display">HI-SCORE: 0</div>
+        </div>
+        <div class="hud-bottom">
+            <div class="ammo-box" id="ammo-display"></div>
+            <div id="level-display">ROUND 1</div>
+        </div>
+    </div>
+
+    <!-- Hidden video element for MediaPipe input -->
+    <video id="webcam" autoplay playsinline style="display:none;"></video>
+    
+    <div id="webcam-container">
+        <canvas id="webcam-preview" width="160" height="120"></canvas>
+        <div id="trigger-meter-container">
+            <div id="trigger-threshold-line"></div>
+            <div id="trigger-fill"></div>
+        </div>
+        <div class="trigger-label" id="trigger-text">THUMB STATUS</div>
+    </div>
+
+    <div id="start-screen">
+        <h1 class="text-4xl text-yellow-400 mb-4" style="color:#3fbfff; text-shadow: 4px 4px #000;">DUCK HUNT AI</h1>
+        <p class="mb-4 text-green-400">HAND TRACKING EDITION</p>
+        
+        <div class="instructions">
+            <p>1. Make a "Gun" shape with your hand.</p>
+            <p>2. <strong>Aim</strong> with your Index Finger.</p>
+            <p>3. <strong>Shoot</strong> by lowering your Thumb (Hammer Action).</p>
+            <p style="color: yellow;">Keep thumb UP to cock. Drop thumb DOWN to fire.</p>
+        </div>
+
+        <div id="loading-area">
+             <div class="loading-spinner"></div>
+             <p class="text-xs text-gray-400">Loading AI Models...</p>
+        </div>
+        
+        <button id="start-btn" style="display:none;">START GAME</button>
+        <div id="status-msg" class="mt-4 text-xs text-gray-400"></div>
+    </div>
+
+    <div id="game-over-screen" style="display: none;">
+        <h1 class="text-red-500 text-4xl mb-4">GAME OVER</h1>
+        <p id="final-score" class="mb-4">SCORE: 0</p>
+        <button id="restart-btn">TRY AGAIN</button>
+    </div>
+</div>
+
+<script>
+/**
+ * DUCK HUNT AI - HAND TRACKING EDITION
+ * Uses MediaPipe Hands to track Index Finger (Aim) and Thumb (Trigger).
+ */
+
+// --- CONFIGURATION ---
+const SMOOTHING = 0.2; 
+const TRIGGER_THRESHOLD = 0.10; // Increased from 0.06 to make shooting easier/sooner
+const TRIGGER_RESET_THRESHOLD = 0.15; // Increased from 0.10 for easier reset
+const MAX_AMMO = 3;
+const GRAVITY = 0.2;
+
+// --- STATE ---
+const state = {
+    isActive: false,
+    aiLoaded: false,
+    score: 0,
+    highScore: localStorage.getItem('duckhunt_hiscore') || 0,
+    round: 1,
+    ammo: MAX_AMMO,
+    ducks: [],
+    cursor: { x: window.innerWidth/2, y: window.innerHeight/2 },
+    targetCursor: { x: window.innerWidth/2, y: window.innerHeight/2 },
+    isCocked: true, // Gun starts ready
+    shootCooldown: 0,
+    ducksHitRound: 0,
+    ducksSpawnedRound: 0,
+    maxDucksRound: 10,
+    cameraActive: false
+};
+
+// --- DOM ELEMENTS ---
+const canvas = document.getElementById('game-canvas');
+const ctx = canvas.getContext('2d');
+const video = document.getElementById('webcam');
+const previewCanvas = document.getElementById('webcam-preview');
+const pCtx = previewCanvas.getContext('2d');
+const flashOverlay = document.getElementById('flash-overlay');
+const triggerFill = document.getElementById('trigger-fill');
+const triggerText = document.getElementById('trigger-text');
+
+// --- ASSETS ---
+const bgSrc = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABAAAAAMACAMAAACjz4OmAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAGUExURQAAAP///6XZn90AAAAJcEhZcwAADsMAAA7DAcdvqGQAAACLSURBVHhe7cExAQAAAMKg9U9tDQ8gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4NxAAAAB"; 
+
+// --- AUDIO SYSTEM ---
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+function playSound(type) {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+    osc.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    const now = audioCtx.currentTime;
+
+    if (type === 'shoot') {
+        const bufferSize = audioCtx.sampleRate * 0.2;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+        const noise = audioCtx.createBufferSource();
+        noise.buffer = buffer;
+        const noiseGain = audioCtx.createGain();
+        noise.connect(noiseGain);
+        noiseGain.connect(audioCtx.destination);
+        noiseGain.gain.setValueAtTime(0.5, now);
+        noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+        noise.start(now);
+    } else if (type === 'quack') {
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(200, now);
+        osc.frequency.linearRampToValueAtTime(150, now + 0.1);
+        gainNode.gain.setValueAtTime(0.1, now);
+        gainNode.gain.linearRampToValueAtTime(0, now + 0.1);
+        osc.start(now);
+        osc.stop(now + 0.1);
+    } else if (type === 'hit') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(800, now);
+        osc.frequency.linearRampToValueAtTime(1200, now + 0.1);
+        gainNode.gain.setValueAtTime(0.2, now);
+        gainNode.gain.linearRampToValueAtTime(0, now + 0.1);
+        osc.start(now);
+        osc.stop(now + 0.1);
+    } else if (type === 'round_start') {
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(440, now);
+        osc.frequency.setValueAtTime(880, now + 0.2);
+        gainNode.gain.setValueAtTime(0.1, now);
+        osc.start(now);
+        osc.stop(now + 0.4);
+    } else if (type === 'click') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(800, now);
+        gainNode.gain.setValueAtTime(0.1, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
+        osc.start(now);
+        osc.stop(now + 0.05);
+    }
+}
+
+// --- MEDIAPIPE HANDS SETUP ---
+
+function onResults(results) {
+    // Draw Preview
+    pCtx.save();
+    pCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+    pCtx.scale(-1, 1); // Mirror for preview
+    pCtx.translate(-previewCanvas.width, 0);
+    pCtx.drawImage(results.image, 0, 0, previewCanvas.width, previewCanvas.height);
+    
+    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        // Draw Skeleton on Preview
+        const landmarks = results.multiHandLandmarks[0];
+        drawConnectors(pCtx, landmarks, HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 2});
+        drawLandmarks(pCtx, landmarks, {color: '#FF0000', lineWidth: 1, radius: 2});
+
+        // --- GAME LOGIC ---
+
+        // 1. AIMING (Index Finger Tip - Landmark 8)
+        // Note: MediaPipe x is 0-1 from left to right of IMAGE.
+        // Since we mirror the experience, Aim X should be (1 - x).
+        const aimX = 1.0 - landmarks[8].x;
+        const aimY = landmarks[8].y;
+
+        state.targetCursor.x = aimX * canvas.width;
+        state.targetCursor.y = aimY * canvas.height;
+
+        // 2. TRIGGER LOGIC (Thumb Tip #4 vs Index Finger PIP #6)
+        // PIP is the middle joint of the index finger. 
+        // When making a gun with thumb up, distance #4 -> #6 is large.
+        // When pressing thumb down to the side of finger, distance is small.
+        const p1 = landmarks[4]; // Thumb Tip
+        const p2 = landmarks[6]; // Index PIP
+
+        // Calculate Euclidean distance
+        const distance = Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+
+        // Update UI Meter
+        // Map distance roughly 0.03 (closed) to 0.2 (open)
+        // We want small distance = High Bar (Firing)
+        const maxDist = 0.2;
+        let percent = (1 - (distance / maxDist)) * 100;
+        percent = Math.max(0, Math.min(100, percent));
+        triggerFill.style.width = `${percent}%`;
+
+        // Logic
+        if (state.isCocked) {
+            triggerFill.style.backgroundColor = '#fbbf24'; // Yellow (Ready)
+            triggerText.innerText = "READY (DROP THUMB)";
+            
+            // Check for Fire
+            if (distance < TRIGGER_THRESHOLD) {
+                fireGun();
+                state.isCocked = false; // Hammer is down
+                state.shootCooldown = 10;
+                triggerFill.style.backgroundColor = '#ef4444'; // Red
+            }
+        } else {
+            // Gun is fired/uncocked. Needs to reset (Thumb Up).
+            triggerFill.style.backgroundColor = '#555'; // Grey
+            triggerText.innerText = "COCK HAMMER (LIFT THUMB)";
+            
+            if (distance > TRIGGER_RESET_THRESHOLD) {
+                state.isCocked = true;
+                playSound('click'); // Click sound for reload/cock
+            }
+        }
+    }
+    pCtx.restore();
+}
+
+const hands = new Hands({locateFile: (file) => {
+  return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+}});
+
+hands.setOptions({
+  maxNumHands: 1,
+  modelComplexity: 1,
+  minDetectionConfidence: 0.5,
+  minTrackingConfidence: 0.5
+});
+
+hands.onResults(onResults);
+
+// --- CAMERA SETUP ---
+
+async function initCamera() {
+    const camera = new Camera(video, {
+        onFrame: async () => {
+            await hands.send({image: video});
+        },
+        width: 320,
+        height: 240
+    });
+    camera.start();
+    state.cameraActive = true;
+    
+    // Switch UI
+    document.getElementById('loading-area').style.display = 'none';
+    const startBtn = document.getElementById('start-btn');
+    startBtn.style.display = 'inline-block';
+    startBtn.innerText = "START GAME";
+    
+    document.getElementById('webcam-preview').style.display = 'block';
+    document.getElementById('trigger-meter-container').style.display = 'block';
+    document.getElementById('status-msg').innerText = "AI Ready! Form a gun shape to test.";
+}
+
+// --- GAME OBJECTS ---
+
+class Duck {
+    constructor() {
+        this.reset();
+    }
+
+    reset() {
+        this.width = 80;
+        this.height = 80;
+        this.x = Math.random() * (canvas.width - 120) + 60;
+        this.y = canvas.height; 
+        
+        const speedMult = 1 + (state.round * 0.1); 
+        // Reduced speed significantly (from 8 to 4 for X, and reduced Y range)
+        this.vx = (Math.random() - 0.5) * 4 * speedMult;
+        this.vy = -(Math.random() * 3 + 2) * speedMult;
+        
+        this.state = 'FLYING';
+        this.timer = 0;
+        this.animFrame = 0;
+        this.color = Math.random() > 0.5 ? '#E91E63' : '#000';
+        playSound('quack');
+    }
+
+    update() {
+        this.timer++;
+        if (this.state === 'FLYING') {
+            this.x += this.vx;
+            this.y += this.vy;
+            if (this.x < 0 || this.x > canvas.width - this.width) this.vx *= -1;
+            if (this.y < -100) this.state = 'DEAD'; 
+            if (this.timer % 10 === 0) this.animFrame = (this.animFrame + 1) % 2;
+        } else if (this.state === 'SHOT') {
+            this.timer++;
+            this.vx = 0;
+            this.vy = 0;
+            if (this.timer > 20) { this.state = 'FALLING'; this.vy = 5; }
+        } else if (this.state === 'FALLING') {
+            this.y += this.vy;
+            this.vy += GRAVITY;
+            if (this.y > canvas.height) this.state = 'DEAD';
+        }
+    }
+
+    draw(ctx) {
+        if (this.state === 'DEAD') return;
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        const scale = this.width / 60;
+        ctx.scale(scale, scale);
+        if (this.vx < 0 && this.state !== 'FALLING') {
+            ctx.translate(60, 0);
+            ctx.scale(-1, 1);
+        }
+        ctx.fillStyle = this.color === '#000' ? '#333' : '#d44';
+        if (this.state === 'FLYING') {
+            ctx.fillRect(10, 20, 40, 15);
+            ctx.fillStyle = '#fff'; ctx.fillRect(15, 15, 10, 5);
+            ctx.fillStyle = '#222'; ctx.fillRect(20, 10, 10, 5);
+            ctx.fillStyle = '#888';
+            if (this.animFrame === 0) ctx.fillRect(15, 5, 20, 10);
+            else ctx.fillRect(15, 25, 20, 10);
+        } else if (this.state === 'SHOT') {
+             ctx.fillStyle = '#f00'; ctx.fillRect(10,10, 40, 40);
+             ctx.fillStyle = '#fff'; ctx.fillText("!", 25, 35);
+        } else if (this.state === 'FALLING') {
+            ctx.fillStyle = this.color === '#000' ? '#333' : '#d44'; ctx.fillRect(20, 10, 20, 40);
+            ctx.fillStyle = '#222'; ctx.fillRect(15, 40, 30, 10);
+        }
+        ctx.restore();
+    }
+
+    checkHit(x, y) {
+        if (this.state !== 'FLYING') return false;
+        const padding = 20;
+        if (x > this.x - padding && x < this.x + this.width + padding &&
+            y > this.y - padding && y < this.y + this.height + padding) {
+            this.state = 'SHOT';
+            this.timer = 0;
+            playSound('hit');
+            return true;
+        }
+        return false;
+    }
+}
+
+// --- GAME LOGIC ---
+
+function fireGun() {
+    if (state.ammo <= 0) return;
+
+    state.ammo--;
+    updateHUD();
+    playSound('shoot');
+
+    flashOverlay.style.opacity = 0.8;
+    setTimeout(() => flashOverlay.style.opacity = 0, 50);
+
+    let hit = false;
+    state.ducks.forEach(duck => {
+        if (duck.checkHit(state.cursor.x, state.cursor.y)) {
+            hit = true;
+            state.score += 500;
+            state.ducksHitRound++;
+            updateHUD();
+        }
+    });
+}
+
+function spawnDuck() {
+    if (state.ducksSpawnedRound >= state.maxDucksRound) return;
+    state.ducks.push(new Duck());
+    state.ducksSpawnedRound++;
+}
+
+function updateHUD() {
+    document.getElementById('score-display').innerText = `SCORE: ${state.score}`;
+    document.getElementById('highscore-display').innerText = `HI-SCORE: ${state.highScore}`;
+    document.getElementById('level-display').innerText = `ROUND ${state.round}`;
+    const ammoBox = document.getElementById('ammo-display');
+    ammoBox.innerHTML = '';
+    for(let i=0; i<state.ammo; i++) {
+        const b = document.createElement('div');
+        b.className = 'bullet';
+        ammoBox.appendChild(b);
+    }
+}
+
+function gameOver() {
+    state.isActive = false;
+    if (state.score > state.highScore) {
+        state.highScore = state.score;
+        localStorage.setItem('duckhunt_hiscore', state.highScore);
+    }
+    document.getElementById('final-score').innerText = `FINAL SCORE: ${state.score}`;
+    document.getElementById('game-over-screen').style.display = 'flex';
+    document.getElementById('start-screen').style.display = 'none';
+    playSound('round_start');
+}
+
+function nextRound() {
+    state.round++;
+    state.ammo = MAX_AMMO;
+    state.ducksHitRound = 0;
+    state.ducksSpawnedRound = 0;
+    state.ducks = [];
+    state.maxDucksRound += 2;
+    updateHUD();
+    playSound('round_start');
+}
+
+function gameLoop() {
+    if (!state.isActive) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Update Smooth Cursor (AI sets targetCursor)
+    state.cursor.x += (state.targetCursor.x - state.cursor.x) * SMOOTHING;
+    state.cursor.y += (state.targetCursor.y - state.cursor.y) * SMOOTHING;
+
+    state.ducks.forEach(duck => { duck.update(); duck.draw(ctx); });
+    state.ducks = state.ducks.filter(d => d.state !== 'DEAD');
+
+    if (state.ducks.length === 0 && state.ducksSpawnedRound < state.maxDucksRound) {
+        if (Math.random() < 0.05) spawnDuck();
+    }
+
+    if (state.ducksSpawnedRound === state.maxDucksRound && state.ducks.length === 0) nextRound();
+    if (state.ammo === 0) {
+       if (Math.random() < 0.02) { state.ammo = MAX_AMMO; updateHUD(); }
+    }
+
+    // Draw Foreground
+    ctx.fillStyle = '#4b692f';
+    ctx.fillRect(0, canvas.height - 100, canvas.width, 100);
+    ctx.fillStyle = '#8B4513';
+    ctx.fillRect(100, canvas.height - 250, 40, 150);
+    ctx.fillStyle = '#4b692f';
+    ctx.beginPath();
+    ctx.arc(120, canvas.height - 280, 60, 0, Math.PI*2);
+    ctx.fill();
+
+    // Draw Cursor
+    ctx.strokeStyle = state.isCocked ? '#fff' : '#ef4444'; // Red if trigger pulled (but fired)
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(state.cursor.x, state.cursor.y, 20, 0, Math.PI * 2);
+    ctx.moveTo(state.cursor.x - 25, state.cursor.y);
+    ctx.lineTo(state.cursor.x + 25, state.cursor.y);
+    ctx.moveTo(state.cursor.x, state.cursor.y - 25);
+    ctx.lineTo(state.cursor.x, state.cursor.y + 25);
+    ctx.stroke();
+    
+    // Draw Hand Visualizer (Simplified Gun) near cursor
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.font = "10px monospace";
+    ctx.fillText("AIM", state.cursor.x + 25, state.cursor.y + 5);
+
+    requestAnimationFrame(gameLoop);
+}
+
+function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+
+function startGame() {
+    state.score = 0;
+    state.round = 1;
+    state.ammo = MAX_AMMO;
+    state.ducks = [];
+    state.ducksSpawnedRound = 0;
+    state.isActive = true;
+    updateHUD();
+    playSound('round_start');
+    
+    document.getElementById('start-screen').style.display = 'none';
+    document.getElementById('game-over-screen').style.display = 'none';
+    
+    resize();
+    gameLoop();
+}
+
+document.getElementById('start-btn').addEventListener('click', startGame);
+document.getElementById('restart-btn').addEventListener('click', startGame);
+
+window.addEventListener('mousedown', fireGun);
+window.addEventListener('keydown', (e) => { if (e.code === 'Space') fireGun(); });
+
+resize();
+updateHUD();
+initCamera(); // Start AI immediately
+document.getElementById('game-container').style.backgroundImage = `url('${bgSrc}')`;
+
+</script>
+</body>
+</html>
