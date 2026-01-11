@@ -366,6 +366,7 @@ const COMMUNITY_URL = 'https://www.skool.com/ai-sverige'; // Lead gen community 
 const DOG_ANIMATION_DURATION = 2000; // Dog display duration in ms
 const HUD_HEIGHT = 80; // Height of bottom HUD bar
 const GAME_FPS = 60; // Assumed frame rate for calculations
+const DOG_ANIMATION_FRAMES = (DOG_ANIMATION_DURATION / 1000) * GAME_FPS; // Total frames for dog animation
 
 // --- STATE ---
 const state = {
@@ -606,7 +607,7 @@ class Dog {
                 this.animFrame = (this.animFrame + 1) % 2;
             }
             // After duration, start lowering
-            if (this.timer > (DOG_ANIMATION_DURATION / 1000) * GAME_FPS) {
+            if (this.timer > DOG_ANIMATION_FRAMES) {
                 this.state = 'LOWERING';
                 this.targetY = 0;
             }
