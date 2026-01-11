@@ -99,6 +99,20 @@
             100% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
         }
 
+        .lead-gen-text {
+            color: #3fbfff;
+            font-size: 0.875rem;
+            margin-bottom: 1rem;
+        }
+
+        .lead-gen-link {
+            color: #ffcc00;
+            text-decoration: underline;
+            margin-bottom: 20px;
+            display: block;
+            pointer-events: auto;
+        }
+
         .hud-bottom {
             display: flex;
             gap: 20px;
@@ -321,8 +335,8 @@
     <div id="game-over-screen" style="display: none;">
         <h1 class="text-red-500 text-4xl mb-4">GAME OVER</h1>
         <p id="final-score" class="mb-4">SCORE: 0</p>
-        <p class="mb-4 text-sm" style="color: #3fbfff;">Want to learn more about AI?</p>
-        <a href="https://www.skool.com/ai-sverige" target="_blank" rel="noopener noreferrer" style="color: #ffcc00; text-decoration: underline; margin-bottom: 20px; display: block; pointer-events: auto;">Join my Free Community on Skool</a>
+        <p class="lead-gen-text">Want to learn more about AI?</p>
+        <a href="https://www.skool.com/ai-sverige" target="_blank" rel="noopener noreferrer" class="lead-gen-link">Join my Free Community on Skool</a>
         <button id="restart-btn">TRY AGAIN</button>
     </div>
     
@@ -346,6 +360,8 @@ const TRIGGER_RESET_THRESHOLD = 0.15; // Increased from 0.10 for easier reset
 const MAX_AMMO = 3;
 const GRAVITY = 0.2;
 const ROUND_ANNOUNCEMENT_DURATION = 2000; // Duration in ms for round announcement overlay
+const DUCKS_PER_ROUND = 10; // Fixed number of ducks per round
+const DUCK_ESCAPE_THRESHOLD = -100; // Y position at which duck is considered escaped
 
 // --- STATE ---
 const state = {
@@ -362,7 +378,7 @@ const state = {
     shootCooldown: 0,
     ducksHitRound: 0,
     ducksSpawnedRound: 0,
-    maxDucksRound: 10,
+    maxDucksRound: DUCKS_PER_ROUND,
     cameraActive: false
 };
 
@@ -575,7 +591,7 @@ class Duck {
             this.x += this.vx;
             this.y += this.vy;
             if (this.x < 0 || this.x > canvas.width - this.width) this.vx *= -1;
-            if (this.y < -100) {
+            if (this.y < DUCK_ESCAPE_THRESHOLD) {
                 this.state = 'DEAD';
                 // Duck escaped - deduct a life
                 if (state.isActive) {
@@ -698,7 +714,7 @@ function nextRound() {
     state.ducksSpawnedRound = 0;
     state.ducks = [];
     // Keep maxDucksRound fixed at 10
-    state.maxDucksRound = 10;
+    state.maxDucksRound = DUCKS_PER_ROUND;
     updateHUD();
     playSound('round_start');
     
@@ -774,7 +790,7 @@ function startGame() {
     state.ammo = MAX_AMMO;
     state.ducks = [];
     state.ducksSpawnedRound = 0;
-    state.maxDucksRound = 10;
+    state.maxDucksRound = DUCKS_PER_ROUND;
     state.isActive = true;
     updateHUD();
     playSound('round_start');
