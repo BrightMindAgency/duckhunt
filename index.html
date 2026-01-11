@@ -345,6 +345,7 @@ const TRIGGER_THRESHOLD = 0.10; // Increased from 0.06 to make shooting easier/s
 const TRIGGER_RESET_THRESHOLD = 0.15; // Increased from 0.10 for easier reset
 const MAX_AMMO = 3;
 const GRAVITY = 0.2;
+const ROUND_ANNOUNCEMENT_DURATION = 2000; // Duration in ms for round announcement overlay
 
 // --- STATE ---
 const state = {
@@ -577,10 +578,10 @@ class Duck {
             if (this.y < -100) {
                 this.state = 'DEAD';
                 // Duck escaped - deduct a life
-                if (window.state && window.state.isActive) {
-                    window.state.lives--;
+                if (state.isActive) {
+                    state.lives--;
                     updateHUD();
-                    if (window.state.lives <= 0) {
+                    if (state.lives <= 0) {
                         gameOver();
                     }
                 }
@@ -707,7 +708,7 @@ function nextRound() {
     announcement.style.display = 'block';
     setTimeout(() => {
         announcement.style.display = 'none';
-    }, 2000);
+    }, ROUND_ANNOUNCEMENT_DURATION);
 }
 
 function gameLoop() {
@@ -787,7 +788,7 @@ function startGame() {
     announcement.style.display = 'block';
     setTimeout(() => {
         announcement.style.display = 'none';
-    }, 2000);
+    }, ROUND_ANNOUNCEMENT_DURATION);
     
     resize();
     gameLoop();
