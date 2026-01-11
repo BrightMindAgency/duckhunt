@@ -3,7 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Webcam Duck Hunt 8-Bit</title>
+    <title>Webcam Duck Hunt 8-Bit - AI Hand Tracking Game</title>
+    
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="Play Duck Hunt with your hands! A browser-based AI game using MediaPipe for hand tracking. No controller needed.">
+    <meta name="keywords" content="AI game, hand tracking, mediapipe, duck hunt, browser game, webcam game, 8-bit, computer vision">
+    <meta name="author" content="Sibbe Silvén">
+    
+    <!-- Open Graph Meta Tags -->
+    <meta property="og:title" content="Webcam Duck Hunt 8-Bit - AI Hand Tracking Game">
+    <meta property="og:description" content="Play Duck Hunt with your hands! A browser-based AI game using MediaPipe for hand tracking. No controller needed.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="">
+    <meta property="og:image" content="og-image.jpg">
+    <!-- Note: Update og:url and og:image to absolute URLs (e.g., https://yourdomain.com/og-image.jpg) for proper social sharing -->
+    
+    <!-- Twitter Card Meta Tags -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Webcam Duck Hunt 8-Bit - AI Hand Tracking Game">
+    <meta name="twitter:description" content="Play Duck Hunt with your hands! A browser-based AI game using MediaPipe for hand tracking. No controller needed.">
+    <meta name="twitter:image" content="og-image.jpg">
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- AI Hand Tracking Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
@@ -196,6 +215,36 @@
         }
         
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        /* Copyright Footer */
+        .copyright-footer {
+            position: fixed;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            font-size: 8px;
+            color: #fff;
+            text-shadow: 2px 2px #000;
+            text-align: center;
+            pointer-events: auto;
+        }
+        
+        .copyright-footer a {
+            color: #3fbfff;
+            text-decoration: none;
+            margin-left: 10px;
+            padding: 5px 10px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid #3fbfff;
+            display: inline-block;
+            pointer-events: auto;
+        }
+        
+        .copyright-footer a:hover {
+            background: #3fbfff;
+            color: #000;
+        }
     </style>
 </head>
 <body>
@@ -251,6 +300,12 @@
         <h1 class="text-red-500 text-4xl mb-4">GAME OVER</h1>
         <p id="final-score" class="mb-4">SCORE: 0</p>
         <button id="restart-btn">TRY AGAIN</button>
+    </div>
+    
+    <!-- Copyright Footer -->
+    <div class="copyright-footer">
+        Created by: Sibbe Silvén
+        <a href="https://www.skool.com/ai-sverige" target="_blank" rel="noopener noreferrer">Join the Community</a>
     </div>
 </div>
 
