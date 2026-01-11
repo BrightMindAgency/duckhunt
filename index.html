@@ -362,6 +362,7 @@ const GRAVITY = 0.2;
 const ROUND_ANNOUNCEMENT_DURATION = 2000; // Duration in ms for round announcement overlay
 const DUCKS_PER_ROUND = 10; // Fixed number of ducks per round
 const DUCK_ESCAPE_THRESHOLD = -100; // Y position at which duck is considered escaped
+const COMMUNITY_URL = 'https://www.skool.com/ai-sverige'; // Lead gen community URL
 
 // --- STATE ---
 const state = {
@@ -595,11 +596,7 @@ class Duck {
                 this.state = 'DEAD';
                 // Duck escaped - deduct a life
                 if (state.isActive) {
-                    state.lives--;
-                    updateHUD();
-                    if (state.lives <= 0) {
-                        gameOver();
-                    }
+                    loseLife();
                 }
             }
             if (this.timer % 10 === 0) this.animFrame = (this.animFrame + 1) % 2;
@@ -658,6 +655,23 @@ class Duck {
 }
 
 // --- GAME LOGIC ---
+
+function loseLife() {
+    state.lives--;
+    updateHUD();
+    if (state.lives <= 0) {
+        gameOver();
+    }
+}
+
+function showRoundAnnouncement(roundNumber) {
+    const announcement = document.getElementById('round-announcement');
+    announcement.innerText = `ROUND ${roundNumber} STARTS NOW`;
+    announcement.style.display = 'block';
+    setTimeout(() => {
+        announcement.style.display = 'none';
+    }, ROUND_ANNOUNCEMENT_DURATION);
+}
 
 function fireGun() {
     if (state.ammo <= 0) return;
@@ -719,12 +733,7 @@ function nextRound() {
     playSound('round_start');
     
     // Show round announcement
-    const announcement = document.getElementById('round-announcement');
-    announcement.innerText = `ROUND ${state.round} STARTS NOW`;
-    announcement.style.display = 'block';
-    setTimeout(() => {
-        announcement.style.display = 'none';
-    }, ROUND_ANNOUNCEMENT_DURATION);
+    showRoundAnnouncement(state.round);
 }
 
 function gameLoop() {
@@ -799,12 +808,7 @@ function startGame() {
     document.getElementById('game-over-screen').style.display = 'none';
     
     // Show round 1 announcement
-    const announcement = document.getElementById('round-announcement');
-    announcement.innerText = 'ROUND 1 STARTS NOW';
-    announcement.style.display = 'block';
-    setTimeout(() => {
-        announcement.style.display = 'none';
-    }, ROUND_ANNOUNCEMENT_DURATION);
+    showRoundAnnouncement(1);
     
     resize();
     gameLoop();
