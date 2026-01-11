@@ -79,6 +79,40 @@
             font-size: 16px;
         }
 
+        /* Round Announcement Overlay */
+        #round-announcement {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 32px;
+            color: #ffcc00;
+            text-shadow: 4px 4px #000;
+            z-index: 30;
+            display: none;
+            animation: fadeInOut 2s ease-in-out;
+        }
+
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+            50% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+        }
+
+        .lead-gen-text {
+            color: #3fbfff;
+            font-size: 0.875rem;
+            margin-bottom: 1rem;
+        }
+
+        .lead-gen-link {
+            color: #ffcc00;
+            text-decoration: underline;
+            margin-bottom: 20px;
+            display: block;
+            pointer-events: auto;
+        }
+
         .hud-bottom {
             display: flex;
             gap: 20px;
@@ -256,13 +290,15 @@
     <div class="ui-layer">
         <div class="hud-top">
             <div id="score-display">SCORE: 0</div>
-            <div id="highscore-display">HI-SCORE: 0</div>
+            <div id="lives-display">LIVES: 5</div>
         </div>
         <div class="hud-bottom">
             <div class="ammo-box" id="ammo-display"></div>
             <div id="level-display">ROUND 1</div>
         </div>
     </div>
+
+    <div id="round-announcement"></div>
 
     <!-- Hidden video element for MediaPipe input -->
     <video id="webcam" autoplay playsinline style="display:none;"></video>
@@ -299,6 +335,8 @@
     <div id="game-over-screen" style="display: none;">
         <h1 class="text-red-500 text-4xl mb-4">GAME OVER</h1>
         <p id="final-score" class="mb-4">SCORE: 0</p>
+        <p class="lead-gen-text">Want to learn more about AI?</p>
+        <a href="https://www.skool.com/ai-sverige" target="_blank" rel="noopener noreferrer" class="lead-gen-link">Join my Free Community on Skool</a>
         <button id="restart-btn">TRY AGAIN</button>
     </div>
     
@@ -321,13 +359,17 @@ const TRIGGER_THRESHOLD = 0.10; // Increased from 0.06 to make shooting easier/s
 const TRIGGER_RESET_THRESHOLD = 0.15; // Increased from 0.10 for easier reset
 const MAX_AMMO = 3;
 const GRAVITY = 0.2;
+const ROUND_ANNOUNCEMENT_DURATION = 2000; // Duration in ms for round announcement overlay
+const DUCKS_PER_ROUND = 10; // Fixed number of ducks per round
+const DUCK_ESCAPE_THRESHOLD = -100; // Y position at which duck is considered escaped
+const COMMUNITY_URL = 'https://www.skool.com/ai-sverige'; // Lead gen community URL
 
 // --- STATE ---
 const state = {
     isActive: false,
     aiLoaded: false,
     score: 0,
-    highScore: localStorage.getItem('duckhunt_hiscore') || 0,
+    lives: 5,
     round: 1,
     ammo: MAX_AMMO,
     ducks: [],
@@ -337,8 +379,9 @@ const state = {
     shootCooldown: 0,
     ducksHitRound: 0,
     ducksSpawnedRound: 0,
-    maxDucksRound: 10,
-    cameraActive: false
+    maxDucksRound: DUCKS_PER_ROUND,
+    cameraActive: false,
+    announcementTimeout: null // Track announcement timeout to prevent overlaps
 };
 
 // --- DOM ELEMENTS ---
@@ -550,7 +593,13 @@ class Duck {
             this.x += this.vx;
             this.y += this.vy;
             if (this.x < 0 || this.x > canvas.width - this.width) this.vx *= -1;
-            if (this.y < -100) this.state = 'DEAD'; 
+            if (this.y < DUCK_ESCAPE_THRESHOLD) {
+                this.state = 'DEAD';
+                // Duck escaped - deduct a life
+                if (state.isActive) {
+                    loseLife();
+                }
+            }
             if (this.timer % 10 === 0) this.animFrame = (this.animFrame + 1) % 2;
         } else if (this.state === 'SHOT') {
             this.timer++;
@@ -608,6 +657,30 @@ class Duck {
 
 // --- GAME LOGIC ---
 
+function loseLife() {
+    state.lives--;
+    updateHUD();
+    if (state.lives <= 0) {
+        gameOver();
+    }
+}
+
+function showRoundAnnouncement(roundNumber) {
+    // Clear any existing announcement timeout to prevent overlaps
+    if (state.announcementTimeout) {
+        clearTimeout(state.announcementTimeout);
+    }
+    
+    const announcement = document.getElementById('round-announcement');
+    announcement.innerText = `ROUND ${roundNumber} STARTS NOW`;
+    announcement.style.display = 'block';
+    
+    state.announcementTimeout = setTimeout(() => {
+        announcement.style.display = 'none';
+        state.announcementTimeout = null;
+    }, ROUND_ANNOUNCEMENT_DURATION);
+}
+
 function fireGun() {
     if (state.ammo <= 0) return;
 
@@ -637,7 +710,7 @@ function spawnDuck() {
 
 function updateHUD() {
     document.getElementById('score-display').innerText = `SCORE: ${state.score}`;
-    document.getElementById('highscore-display').innerText = `HI-SCORE: ${state.highScore}`;
+    document.getElementById('lives-display').innerText = `LIVES: ${state.lives}`;
     document.getElementById('level-display').innerText = `ROUND ${state.round}`;
     const ammoBox = document.getElementById('ammo-display');
     ammoBox.innerHTML = '';
@@ -650,10 +723,6 @@ function updateHUD() {
 
 function gameOver() {
     state.isActive = false;
-    if (state.score > state.highScore) {
-        state.highScore = state.score;
-        localStorage.setItem('duckhunt_hiscore', state.highScore);
-    }
     document.getElementById('final-score').innerText = `FINAL SCORE: ${state.score}`;
     document.getElementById('game-over-screen').style.display = 'flex';
     document.getElementById('start-screen').style.display = 'none';
@@ -666,9 +735,13 @@ function nextRound() {
     state.ducksHitRound = 0;
     state.ducksSpawnedRound = 0;
     state.ducks = [];
-    state.maxDucksRound += 2;
+    // Keep maxDucksRound fixed at 10
+    state.maxDucksRound = DUCKS_PER_ROUND;
     updateHUD();
     playSound('round_start');
+    
+    // Show round announcement
+    showRoundAnnouncement(state.round);
 }
 
 function gameLoop() {
@@ -729,16 +802,21 @@ window.addEventListener('resize', resize);
 
 function startGame() {
     state.score = 0;
+    state.lives = 5;
     state.round = 1;
     state.ammo = MAX_AMMO;
     state.ducks = [];
     state.ducksSpawnedRound = 0;
+    state.maxDucksRound = DUCKS_PER_ROUND;
     state.isActive = true;
     updateHUD();
     playSound('round_start');
     
     document.getElementById('start-screen').style.display = 'none';
     document.getElementById('game-over-screen').style.display = 'none';
+    
+    // Show round 1 announcement
+    showRoundAnnouncement(1);
     
     resize();
     gameLoop();
